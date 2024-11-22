@@ -301,9 +301,11 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
             .at(submap_id)
             .global_pose.inverse() *
         optimization_problem_->node_data().at(node_id).global_pose_2d;
+            // 进行局部搜索窗口 的约束计算 (对局部子图进行回环检测)
     constraint_builder_.MaybeAddConstraint(
         submap_id, submap, node_id, constant_data, initial_relative_pose);
   } else if (maybe_add_global_constraint) {
+    //    // 全局搜索窗口 的约束计算 (对整体子图进行回环检测)
     constraint_builder_.MaybeAddGlobalConstraint(submap_id, submap, node_id,
                                                  constant_data);
   }

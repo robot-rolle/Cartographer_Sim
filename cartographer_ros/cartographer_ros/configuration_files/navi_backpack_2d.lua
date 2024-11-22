@@ -41,6 +41,7 @@ options = {
     fixed_frame_pose_sampling_ratio = 1.,
     imu_sampling_ratio = 1.,
     landmarks_sampling_ratio = 1.,
+    publish_tracked_pose =true, --open tracked pose  amcl 订阅这个init pose
     }
   
     MAP_BUILDER.use_trajectory_builder_2d = true--3d激光还是2d激光

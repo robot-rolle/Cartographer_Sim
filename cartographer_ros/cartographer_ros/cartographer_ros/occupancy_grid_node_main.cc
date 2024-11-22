@@ -170,8 +170,7 @@ void Node::DrawAndPublish(const ::ros::WallTimerEvent& unused_timer_event) {
       painted_slices, resolution_, last_frame_id_, last_timestamp_);
   occupancy_grid_publisher_.publish(*msg_ptr);
 }
-
-}  // namespace
+  }  // namespace
 }  // namespace cartographer_ros
 
 int main(int argc, char** argv) {

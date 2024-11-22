@@ -7,6 +7,8 @@
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
+ * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -38,7 +40,7 @@
 #include "cartographer/metrics/histogram.h"
 #include "cartographer/transform/transform.h"
 #include "glog/logging.h"
-
+// 后端优化接口
 namespace cartographer {
 namespace mapping {
 namespace constraints {
@@ -78,6 +80,9 @@ void ConstraintBuilder2D::MaybeAddConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
     const transform::Rigid2d& initial_relative_pose) {
+  //节点到子图原点距离是否超过 lua文件optio.max_constraint_distance 
+  //超过的话直接ruturn 不计算约束条件跳出函数
+  //不超过 继续后面的计算！
   if (initial_relative_pose.translation().norm() >
       options_.max_constraint_distance()) {
     return;
@@ -90,6 +95,7 @@ void ConstraintBuilder2D::MaybeAddConstraint(
   }
 
   absl::MutexLock locker(&mutex_);
+    // 当when_done_正在处理任务时调用本函数, 报个警告
   if (when_done_) {
     LOG(WARNING)
         << "MaybeAddConstraint was called while WhenDone was scheduled.";
@@ -97,8 +103,10 @@ void ConstraintBuilder2D::MaybeAddConstraint(
   constraints_.emplace_back();
   kQueueLengthMetric->Set(constraints_.size());
   auto* const constraint = &constraints_.back();
+  //为子图新建一个匹配器
   const auto* scan_matcher =
       DispatchScanMatcherConstruction(submap_id, submap->grid());
+  //生成个计算的约束任务
   auto constraint_task = absl::make_unique<common::Task>();
   constraint_task->SetWorkItem([=]() LOCKS_EXCLUDED(mutex_) {
     ComputeConstraint(submap_id, submap, node_id, false, /* match_full_submap */
@@ -157,9 +165,9 @@ void ConstraintBuilder2D::WhenDone(
   // TODO(gaschler): Consider using just std::function, it can also be empty.
   when_done_ = absl::make_unique<std::function<void(const Result&)>>(callback);
   CHECK(when_done_task_ != nullptr);
-  when_done_task_->SetWorkItem([this] { RunWhenDoneCallback(); });
-  thread_pool_->Schedule(std::move(when_done_task_));
-  when_done_task_ = absl::make_unique<common::Task>();
+    when_done_task_->SetWorkItem([this] { RunWhenDoneCallback(); });
+    thread_pool_->Schedule(std::move(when_done_task_));
+    when_done_task_ = absl::make_unique<common::Task>();
 }
 
 const ConstraintBuilder2D::SubmapScanMatcher*
@@ -234,10 +242,10 @@ void ConstraintBuilder2D::ComputeConstraint(
       return;
     }
   }
-  {
-    absl::MutexLock locker(&mutex_);
-    score_histogram_.Add(score);
-  }
+      {
+        absl::MutexLock locker(&mutex_);
+        score_histogram_.Add(score);
+      }
 
   // Use the CSM estimate as both the initial and previous pose. This has the
   // effect that, in the absence of better information, we prefer the original
@@ -257,25 +265,31 @@ void ConstraintBuilder2D::ComputeConstraint(
                                     options_.loop_closure_rotation_weight()},
                                    Constraint::INTER_SUBMAP});
 
-  if (options_.log_matches()) {
-    std::ostringstream info;
-    info << "Node " << node_id << " with "
-         << constant_data->filtered_gravity_aligned_point_cloud.size()
-         << " points on submap " << submap_id << std::fixed;
-    if (match_full_submap) {
-      info << " matches";
-    } else {
-      const transform::Rigid2d difference =
-          initial_pose.inverse() * pose_estimate;
-      info << " differs by translation " << std::setprecision(2)
-           << difference.translation().norm() << " rotation "
-           << std::setprecision(3) << std::abs(difference.normalized_angle());
-    }
-    info << " with score " << std::setprecision(1) << 100. * score << "%.";
-    LOG(INFO) << info.str();
-  }
+          if (options_.log_matches()) {
+            std::ostringstream info;
+            info << "Node " << node_id << " with "
+                << constant_data->filtered_gravity_aligned_point_cloud.size()
+                << " points on submap " << submap_id << std::fixed;
+            if (match_full_submap) {
+              info << " matches";
+            } else {
+              const transform::Rigid2d difference =
+                  initial_pose.inverse() * pose_estimate;
+              info << " differs by translation " << std::setprecision(2)
+                  << difference.translation().norm() << " rotation "
+                  << std::setprecision(3) << std::abs(difference.normalized_angle());
+            }
+            info << " with score " << std::setprecision(1) << 100. * score << "%.";
+            LOG(INFO) << info.str();
+          }
 }
-
+/**
+** @name:              
+** @brief:             RunWhenDoneCallback
+** @param:             
+** @date:              2024-11-19
+** @version:           V0.0
+---------------------------------------*/
 void ConstraintBuilder2D::RunWhenDoneCallback() {
   Result result;
   std::unique_ptr<std::function<void(const Result&)>> callback;
@@ -305,14 +319,14 @@ int ConstraintBuilder2D::GetNumFinishedNodes() {
 }
 
 void ConstraintBuilder2D::DeleteScanMatcher(const SubmapId& submap_id) {
-  absl::MutexLock locker(&mutex_);
-  if (when_done_) {
-    LOG(WARNING)
-        << "DeleteScanMatcher was called while WhenDone was scheduled.";
-  }
-  submap_scan_matchers_.erase(submap_id);
-  per_submap_sampler_.erase(submap_id);
-  kNumSubmapScanMatchersMetric->Set(submap_scan_matchers_.size());
+    absl::MutexLock locker(&mutex_);
+    if (when_done_) {
+      LOG(WARNING)
+          << "DeleteScanMatcher was called while WhenDone was scheduled.";
+    }
+    submap_scan_matchers_.erase(submap_id);
+    per_submap_sampler_.erase(submap_id);
+    kNumSubmapScanMatchersMetric->Set(submap_scan_matchers_.size());
 }
 
 void ConstraintBuilder2D::RegisterMetrics(metrics::FamilyFactory* factory) {

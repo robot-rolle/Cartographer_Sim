@@ -28,13 +28,15 @@
 namespace cartographer {
 namespace common {
 
+//存入队列values_中
 void Histogram::Add(const float value) { values_.push_back(value); }
-
+//把队列中分数转换成string 打印
 std::string Histogram::ToString(const int buckets) const {
   CHECK_GE(buckets, 1);
   if (values_.empty()) {
     return "Count: 0";
   }
+  //存入最大值和最小值begin
   const float min = *std::min_element(values_.begin(), values_.end());
   const float max = *std::max_element(values_.begin(), values_.end());
   const float mean =
